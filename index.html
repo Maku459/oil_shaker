@@ -1,0 +1,729 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>オイルシェーカー 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#C4C8FA; --ink:#2A2468; --sub:#57519A; --btn:#FFFFFFCC; --btn-ink:#2A2468; --line:#2A246833; --focus:#5B4FE0;
+  color-scheme: light; box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#2C2862; --ink:#ECEAFF; --sub:#B4AEE8; --btn:#3B3680; --btn-ink:#ECEAFF; --line:#FFFFFF2E; --focus:#B9B2FF;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#2C2862; --ink:#ECEAFF; --sub:#B4AEE8; --btn:#3B3680; --btn-ink:#ECEAFF; --line:#FFFFFF2E; --focus:#B9B2FF;
+  color-scheme: dark;
+}
+html{height:100%; scroll-padding-top:env(safe-area-inset-top,0px);}
+*,*::before,*::after{box-sizing:inherit}
+body{
+  height:100%; margin:0; background:var(--bg); color:var(--ink);
+  font-family:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  display:flex; flex-direction:column; overflow:hidden;
+}
+header{padding:18px 22px 0; text-align:center}
+h1{margin:0; font-size:1.3rem; font-weight:700; letter-spacing:.04em}
+.hint{margin:6px auto 0; max-width:34em; font-size:.85rem; color:var(--sub); line-height:1.6}
+#stage{flex:1; position:relative; min-height:0; touch-action:none; outline:none}
+canvas{position:absolute; inset:0; width:100%; height:100%; display:block; cursor:grab}
+canvas.grabbing{cursor:grabbing}
+.sparkles{position:absolute; inset:0; pointer-events:none}
+.sparkles svg{position:absolute; fill:#FFFFFF; opacity:.95}
+.controls{display:flex; gap:10px; justify-content:center; flex-wrap:wrap; padding:10px 16px 6px}
+button{
+  font:inherit; font-size:.95rem; font-weight:500; padding:10px 18px; border-radius:999px;
+  border:1px solid var(--line); background:var(--btn); color:var(--btn-ink); cursor:pointer;
+}
+button:focus-visible, #stage:focus-visible{outline:2px solid var(--focus); outline-offset:3px}
+button[aria-pressed="true"]{background:var(--ink); color:var(--bg); border-color:var(--ink)}
+#msg{margin:0 16px 14px; min-height:1.4em; text-align:center; font-size:.8rem; color:var(--sub)}
+.dbg{position:absolute; top:10px; right:10px; z-index:2; width:min(250px, calc(100% - 20px)); padding:12px 14px;
+  background:var(--btn); border:1px solid var(--line); border-radius:14px; font-size:.85rem; touch-action:auto;
+  -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px)}
+.dbg[hidden]{display:none}
+.dbg .row{display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:4px}
+.dbg h2{margin:0; font-size:.9rem; font-weight:700}
+.dbg .row button{padding:4px 12px; font-size:.8rem}
+.dbg label{display:grid; grid-template-columns:4.2em 1fr 3.2em; align-items:center; gap:8px; margin:8px 0 0}
+.dbg input[type=range]{width:100%; accent-color:var(--focus)}
+.dbg output{text-align:right; font-variant-numeric:tabular-nums; color:var(--sub)}
+</style>
+</head>
+<body>
+<header>
+  <h1>オイルシェーカー</h1>
+  <p class="hint">真ん中をドラッグすると傾き、外側をなぞるように回すと気泡が流れます</p>
+</header>
+<div id="stage" tabindex="0" aria-label="シェーカー。矢印キーでも回せます">
+  <div class="sparkles" aria-hidden="true">
+    <svg viewBox="0 0 24 24" style="left:16%;top:9%;width:26px"><path d="M12 0C13 8 16 11 24 12C16 13 13 16 12 24C11 16 8 13 0 12C8 11 11 8 12 0Z"/></svg>
+    <svg viewBox="0 0 24 24" style="left:21%;top:20%;width:14px"><path d="M12 0C13 8 16 11 24 12C16 13 13 16 12 24C11 16 8 13 0 12C8 11 11 8 12 0Z"/></svg>
+    <svg viewBox="0 0 24 24" style="left:77%;top:7%;width:24px"><path d="M12 0C13 8 16 11 24 12C16 13 13 16 12 24C11 16 8 13 0 12C8 11 11 8 12 0Z"/></svg>
+    <svg viewBox="0 0 24 24" style="left:84%;top:15%;width:12px"><path d="M12 0C13 8 16 11 24 12C16 13 13 16 12 24C11 16 8 13 0 12C8 11 11 8 12 0Z"/></svg>
+    <svg viewBox="0 0 24 24" style="left:10%;top:60%;width:20px"><path d="M12 0C13 8 16 11 24 12C16 13 13 16 12 24C11 16 8 13 0 12C8 11 11 8 12 0Z"/></svg>
+    <svg viewBox="0 0 24 24" style="left:87%;top:50%;width:14px"><path d="M12 0C13 8 16 11 24 12C16 13 13 16 12 24C11 16 8 13 0 12C8 11 11 8 12 0Z"/></svg>
+    <svg viewBox="0 0 24 24" style="left:81%;top:80%;width:18px"><path d="M12 0C13 8 16 11 24 12C16 13 13 16 12 24C11 16 8 13 0 12C8 11 11 8 12 0Z"/></svg>
+    <svg viewBox="0 0 24 24" style="left:22%;top:86%;width:11px"><path d="M12 0C13 8 16 11 24 12C16 13 13 16 12 24C11 16 8 13 0 12C8 11 11 8 12 0Z"/></svg>
+  </div>
+  <canvas id="c"></canvas>
+  <div id="dbg" class="dbg" hidden></div>
+</div>
+<div class="controls">
+  <button id="shake" type="button">振る</button>
+  <button id="tilt" type="button" aria-pressed="false">スマホの傾きで動かす</button>
+  <button id="reset" type="button">向きを戻す</button>
+  <button id="debug" type="button" aria-expanded="false" aria-controls="dbg">デバッグ</button>
+</div>
+<p id="msg" role="status"></p>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+const stage = document.getElementById('stage');
+const canvas = document.getElementById('c');
+const msg = document.getElementById('msg');
+if (typeof THREE === 'undefined') { msg.textContent = '3D表示の読み込みに失敗しました。再読み込みしてください。'; return; }
+
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true }); }
+catch(e){ msg.textContent = 'このブラウザはWebGLに対応していないため表示できません。'; return; }
+renderer.setClearColor(0x000000, 0);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
+const group = new THREE.Group();
+scene.add(group);
+
+const INK_HEX = 0x1E1A3E;
+const LIGHT = new THREE.Vector3(-0.5,0.75,0.45).normalize();
+const LIQ_HALF = 0.065;   // half thickness of the oil layer
+
+// ---------- geometry ----------
+function roundRect(a,b,r){
+  const s = new THREE.Shape();
+  s.moveTo(-a+r,-b); s.lineTo(a-r,-b); s.absarc(a-r,-b+r,r,-Math.PI/2,0,false);
+  s.lineTo(a,b-r); s.absarc(a-r,b-r,r,0,Math.PI/2,false);
+  s.lineTo(-a+r,b); s.absarc(-a+r,b-r,r,Math.PI/2,Math.PI,false);
+  s.lineTo(-a,-b+r); s.absarc(-a+r,-b+r,r,Math.PI,Math.PI*1.5,false);
+  return s;
+}
+function bodyShape(){
+  const a=0.40, b=0.54, r=0.15, tc=0.57, tr=0.075;
+  const ang=Math.asin(0.03/tr), tx=Math.sqrt(tr*tr-0.03*0.03);
+  const s = new THREE.Shape();
+  s.moveTo(-a+r,-b); s.lineTo(a-r,-b); s.absarc(a-r,-b+r,r,-Math.PI/2,0,false);
+  s.lineTo(a,b-r); s.absarc(a-r,b-r,r,0,Math.PI/2,false);
+  s.lineTo(tx,b); s.absarc(0,tc,tr,-ang,Math.PI+ang,false);
+  s.lineTo(-a+r,b); s.absarc(-a+r,b-r,r,Math.PI/2,Math.PI,false);
+  s.lineTo(-a,-b+r); s.absarc(-a+r,-b+r,r,Math.PI,Math.PI*1.5,false);
+  const hole = new THREE.Path(); hole.absarc(0,tc,0.05,0,Math.PI*2,true);
+  s.holes.push(hole);
+  return s;
+}
+const bodyGeo = new THREE.ExtrudeGeometry(bodyShape(), {
+  depth:0.14, bevelEnabled:true, bevelThickness:0.02, bevelSize:0.02, bevelSegments:4, curveSegments:32
+});
+bodyGeo.translate(0,0,-0.07);
+const liqGeo = new THREE.ExtrudeGeometry(roundRect(0.36,0.5,0.11), { depth:LIQ_HALF*2, bevelEnabled:false, curveSegments:32 });
+liqGeo.translate(0,0,-LIQ_HALF);
+
+// ---------- oil layer: far wall (opaque) + near wall (tinted glass) ----------
+const liqUniforms = { uUp2:{value:new THREE.Vector2(0,1)} };
+const liqVS = `
+  varying vec3 vPos; varying vec3 vN;
+  void main(){ vPos=position; vN=normal; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`;
+const liqFS = `
+  varying vec3 vPos; varying vec3 vN;
+  uniform vec2 uUp2; uniform float uFront;
+  const vec2 H = vec2(0.36,0.5); const float R = 0.11;
+  const vec3 INKP = vec3(0.27,0.22,0.68);
+  float sdBox(vec2 p, vec2 b, float r){ vec2 q=abs(p)-b+r; return length(max(q,0.))+min(max(q.x,q.y),0.)-r; }
+  void main(){
+    vec2 p = vPos.xy;
+    vec3 oil = mix(vec3(0.90,0.63,0.95), vec3(0.42,0.35,0.93), smoothstep(-0.45, 0.4, dot(p, uUp2)));
+    if (abs(vN.z) < 0.5) { gl_FragColor = vec4(oil*0.8, uFront > 0.5 ? 0.55 : 1.); return; }
+    float px = max(length(fwidth(p)), 1e-4)*0.75;
+    float dL = sdBox(p, H, R);
+    float inkL = max(px*3.0, 0.010);
+    float ink = 1.-smoothstep(inkL-px, inkL+px, -dL);
+    float a = uFront > 0.5 ? 0.14 : 1.;
+    gl_FragColor = vec4(mix(oil, INKP, ink), mix(a, 1., ink));
+  }`;
+const liqBack = new THREE.Mesh(liqGeo, new THREE.ShaderMaterial({
+  extensions:{derivatives:true}, uniforms:{...liqUniforms, uFront:{value:0}}, vertexShader:liqVS, fragmentShader:liqFS,
+  side:THREE.BackSide
+}));
+const liqFront = new THREE.Mesh(liqGeo, new THREE.ShaderMaterial({
+  extensions:{derivatives:true}, uniforms:{...liqUniforms, uFront:{value:1}}, vertexShader:liqVS, fragmentShader:liqFS,
+  side:THREE.FrontSide, transparent:true, depthWrite:false
+}));
+liqBack.renderOrder = 0; liqFront.renderOrder = 2;
+group.add(liqBack, liqFront);
+
+// ---------- 3D air bubble: ray-marched metaballs, clipped by the oil layer ----------
+const bubArr = new Float32Array(40);
+const bubMat = new THREE.ShaderMaterial({
+  extensions:{ fragDepth:true },
+  uniforms:{ uBub:{value:bubArr}, uBubN:{value:0}, uCam:{value:new THREE.Vector3()}, uLL:{value:new THREE.Vector3(0,1,0)},
+             uMVP:{value:new THREE.Matrix4()}, uHalf:{value:LIQ_HALF} },
+  vertexShader:`
+    varying vec3 vPos; varying vec3 vN;
+    void main(){ vPos=position; vN=normal; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+  fragmentShader:`
+    varying vec3 vPos; varying vec3 vN;
+    uniform vec4 uBub[10]; uniform int uBubN; uniform vec3 uCam; uniform vec3 uLL; uniform mat4 uMVP; uniform float uHalf;
+    const vec2 H = vec2(0.36,0.5); const float R = 0.11;
+    const vec3 INK = vec3(0.13,0.11,0.30);
+    const vec3 ZS = vec3(1.,1.,4.2);   // flattens the bubble front-to-back
+    float sdBox(vec2 p, vec2 b, float r){ vec2 q=abs(p)-b+r; return length(max(q,0.))+min(max(q.x,q.y),0.)-r; }
+    float field(vec3 p){
+      float f = 0.;
+      for (int i=0;i<10;i++){ if (i>=uBubN) break; vec4 b=uBub[i]; vec3 v=(p-b.xyz)*ZS; f += b.w*b.w/(dot(v,v)+1e-6); }
+      return f;
+    }
+    vec3 grad(vec3 p){
+      vec3 g = vec3(0.);
+      for (int i=0;i<10;i++){ if (i>=uBubN) break; vec4 b=uBub[i]; vec3 v=(p-b.xyz)*ZS; float d2=dot(v,v)+1e-6; g += -2.*b.w*b.w*v*ZS/(d2*d2); }
+      return g;
+    }
+    bool inLiquid(vec3 p){ return sdBox(p.xy, H, R) < 0. && abs(p.z) < uHalf; }
+    void main(){
+      vec3 rd = normalize(vPos - uCam);
+      vec3 ro = vPos + rd*0.0006;
+      vec3 hit; vec3 N; bool wall = false; bool found = false;
+      if (field(ro) >= 1.) { hit = ro; N = normalize(vN); wall = true; found = true; }
+      else {
+        float t = 0.0006; float prev = t;
+        for (int i=0;i<110;i++){
+          prev = t; t += 0.0035;
+          vec3 p = vPos + rd*t;
+          if (!inLiquid(p)) break;
+          if (field(p) >= 1.) {
+            float lo = prev, hi = t;
+            for (int k=0;k<6;k++){ float m=(lo+hi)*0.5; if (field(vPos+rd*m) >= 1.) hi=m; else lo=m; }
+            hit = vPos + rd*hi; N = -normalize(grad(hit)); found = true; break;
+          }
+        }
+      }
+      if (!found) discard;
+      vec3 V = -rd;
+      float ndv = dot(N, V);
+      vec3 c = vec3(0.97,0.96,1.0); float a = 0.36;
+      if (dot(N, uLL) < -0.15) { c = vec3(0.80,0.77,0.99); a = 0.46; }
+      if (!wall && ndv < 0.3) { c = INK; a = 1.; }
+      gl_FragColor = vec4(c, a);
+      vec4 clip = uMVP*vec4(hit,1.);
+      gl_FragDepthEXT = (clip.z/clip.w)*0.5 + 0.5;
+    }`,
+  side:THREE.FrontSide, transparent:true, depthWrite:false
+});
+const bubbleMesh = new THREE.Mesh(liqGeo, bubMat);
+bubbleMesh.renderOrder = 1.5;
+group.add(bubbleMesh);
+
+// ---------- acrylic body ----------
+const acrylicVS = `
+  varying vec3 vNW; varying vec3 vNL; varying vec3 vPL;
+  void main(){
+    vNL = normal; vPL = position;
+    vNW = normalize(mat3(modelMatrix)*normal);
+    gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.);
+  }`;
+const acrylicFS = `
+  varying vec3 vNW; varying vec3 vNL; varying vec3 vPL;
+  uniform float uBack; uniform vec3 uL;
+  void main(){
+    vec3 N = normalize(vNW); if (!gl_FrontFacing) N = -N;
+    float nz = abs(normalize(vNL).z);
+    vec3 c; float a;
+    if (nz > 0.92) {
+      vec2 q = abs(vPL.xy) - vec2(0.36,0.5) + 0.11;
+      float dL = length(max(q,0.)) + min(max(q.x,q.y),0.) - 0.11;
+      c = vec3(0.93,0.91,1.0); a = dL > 0. ? 0.55 : 0.06;
+      if (uBack < 0.5 && vNL.z > 0.) {
+        float s = step(abs(vPL.x + 0.388), 0.006)*step(0.08, vPL.y)*step(vPL.y, 0.42)
+                + step(abs(vPL.x - 0.388), 0.006)*step(-0.38, vPL.y)*step(vPL.y, 0.28)
+                + step(abs(vPL.x - 0.388), 0.006)*step(0.34, vPL.y)*step(vPL.y, 0.42);
+        s = min(s, 1.);
+        c = mix(c, vec3(1.), s); a = max(a, s*0.95);
+      }
+    } else if (nz > 0.45) {
+      c = vec3(0.36,0.30,0.78); a = uBack > 0.5 ? 0. : 0.85;
+    } else {
+      c = dot(N, uL) > 0. ? vec3(0.91,0.88,1.0) : vec3(0.75,0.70,0.96);
+      a = 0.92;
+    }
+    if (uBack > 0.5) a *= 0.5;
+    gl_FragColor = vec4(c, a);
+  }`;
+function acrylic(side, back){
+  return new THREE.ShaderMaterial({
+    uniforms:{ uBack:{value:back?1:0}, uL:{value:LIGHT} }, vertexShader:acrylicVS, fragmentShader:acrylicFS,
+    transparent:true, depthWrite:false, side,
+    stencilWrite:true, stencilRef:1, stencilFunc:THREE.AlwaysStencilFunc, stencilZPass:THREE.ReplaceStencilOp
+  });
+}
+const bodyBack = new THREE.Mesh(bodyGeo, acrylic(THREE.BackSide, true)); bodyBack.renderOrder = 1;
+const bodyFront = new THREE.Mesh(bodyGeo, acrylic(THREE.FrontSide, false)); bodyFront.renderOrder = 3;
+group.add(bodyBack, bodyFront);
+
+const hullGeo = new THREE.ExtrudeGeometry(bodyShape(), {
+  depth:0.14, bevelEnabled:true, bevelThickness:0.032, bevelSize:0.032, bevelSegments:4, curveSegments:32
+});
+hullGeo.translate(0,0,-0.07);
+const hull = new THREE.Mesh(hullGeo, new THREE.MeshBasicMaterial({
+  color:INK_HEX, side:THREE.BackSide, transparent:true, opacity:1, depthWrite:false,
+  stencilWrite:true, stencilRef:1, stencilFunc:THREE.NotEqualStencilFunc
+}));
+hull.renderOrder = 4;
+group.add(hull);
+
+// ---------- 3D contents (toon shaded, with outlines) ----------
+const toonVS = `
+  varying vec3 vN; varying vec3 vV; varying vec3 vO;
+  void main(){
+    vO = position;
+    vec4 mv = modelViewMatrix*vec4(position,1.);
+    vV = -mv.xyz; vN = normalize(normalMatrix*normal);
+    gl_Position = projectionMatrix*mv;
+  }`;
+const toonFS = `
+  uniform vec3 uColor; uniform float uStripe; uniform float uFlat; uniform vec3 uL;
+  varying vec3 vN; varying vec3 vV; varying vec3 vO;
+  void main(){
+    vec3 c = uColor;
+    if (uFlat > 0.5) { gl_FragColor = vec4(c,1.); return; }
+    vec3 N = normalize(vN); if (!gl_FrontFacing) N = -N;
+    vec3 V = normalize(vV);
+    if (uStripe > 0.5) c = mix(c, c*0.82, step(0.5, fract((vO.y + vO.x*0.4)*2.4)));
+    c = dot(N, uL) > -0.05 ? c : c*0.76;
+    c = mix(c, vec3(1.), step(0.965, dot(N, normalize(uL+V))));
+    gl_FragColor = vec4(c,1.);
+  }`;
+const matCache = new Map();
+function toon(rgb, stripe=0, flat=0){
+  const key = rgb.join()+stripe+flat;
+  if (!matCache.has(key)) matCache.set(key, new THREE.ShaderMaterial({
+    uniforms:{ uColor:{value:new THREE.Color(...rgb)}, uStripe:{value:stripe}, uFlat:{value:flat}, uL:{value:LIGHT} },
+    vertexShader:toonVS, fragmentShader:toonFS, side:THREE.DoubleSide
+  }));
+  return matCache.get(key);
+}
+const inkMat = new THREE.MeshBasicMaterial({ color:INK_HEX, side:THREE.BackSide });
+const OUT = 0.0034;  // outline thickness in shaker units
+
+const sphereGeo = new THREE.SphereGeometry(1, 28, 18);
+const glitterGeo = new THREE.IcosahedronGeometry(1, 1);
+const WHITE = new THREE.Color(1,1,1);
+const sparkTex = (()=>{
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const x = c.getContext('2d');
+  const gr = x.createRadialGradient(64,64,0,64,64,24);
+  gr.addColorStop(0,'rgba(255,255,255,1)'); gr.addColorStop(1,'rgba(255,255,255,0)');
+  x.fillStyle = gr; x.fillRect(0,0,128,128);
+  x.fillStyle = '#fff'; x.beginPath();
+  x.moveTo(64,2); x.quadraticCurveTo(68,60,126,64); x.quadraticCurveTo(68,68,64,126);
+  x.quadraticCurveTo(60,68,2,64); x.quadraticCurveTo(60,60,64,2); x.fill();
+  return new THREE.CanvasTexture(c);
+})();
+function starGeo(){
+  const s = new THREE.Shape();
+  for (let k=0;k<10;k++){
+    const a = Math.PI/2 + k*Math.PI/5, r = k%2 ? 0.48 : 1;
+    k ? s.lineTo(Math.cos(a)*r, Math.sin(a)*r) : s.moveTo(Math.cos(a)*r, Math.sin(a)*r);
+  }
+  const g = new THREE.ExtrudeGeometry(s, { depth:0.22, bevelEnabled:true, bevelThickness:0.16, bevelSize:0.1, bevelSegments:3 });
+  g.center(); return g;
+}
+const starG = starGeo();
+function moonGeoBuild(){
+  // flat crescent: unit circle minus an offset circle, then extruded like the stars
+  const cx=0.42, cy=0.22, rb=0.74;
+  const d=Math.hypot(cx,cy), phi=Math.atan2(cy,cx);
+  const al=Math.acos((1 - rb*rb + d*d)/(2*d));
+  const p1=[Math.cos(phi+al), Math.sin(phi+al)], p2=[Math.cos(phi-al), Math.sin(phi-al)];
+  const b1=Math.atan2(p1[1]-cy, p1[0]-cx), b2=Math.atan2(p2[1]-cy, p2[0]-cx);
+  let span=b1-b2; while (span<0) span+=Math.PI*2;
+  const mid=b2+span/2, ccwInside=Math.hypot(cx+Math.cos(mid)*rb, cy+Math.sin(mid)*rb) < 1;
+  const s = new THREE.Shape();
+  s.moveTo(p1[0], p1[1]);
+  s.absarc(0, 0, 1, phi+al, phi-al+Math.PI*2, false);
+  s.absarc(cx, cy, rb, b2, b1, !ccwInside);
+  const g = new THREE.ExtrudeGeometry(s, { depth:0.22, bevelEnabled:true, bevelThickness:0.14, bevelSize:0.06, bevelSegments:3, curveSegments:28 });
+  g.center(); return g;
+}
+const moonG = moonGeoBuild();
+
+function withOutline(geo, mat, size, scale=1){
+  const g = new THREE.Group();
+  const m = new THREE.Mesh(geo, mat); m.scale.setScalar(scale);
+  const o = new THREE.Mesh(geo, inkMat); o.scale.setScalar(scale*(1 + OUT/(size*scale)));
+  g.add(o, m);
+  return g;
+}
+function makeObject(st){
+  const g = new THREE.Group();
+  const s = st.s;
+  if (st.type === 4) {            // striped planet (no ring)
+    g.add(withOutline(sphereGeo, toon(st.col, 1), s));
+  } else if (st.type === 3) {     // crescent moon
+    g.add(withOutline(moonG, toon(st.col), s));
+  } else if (st.type === 2) {     // white bead
+    g.add(withOutline(sphereGeo, toon(st.col), s));
+  } else if (st.type === 0) {     // gold star
+    g.add(withOutline(starG, toon(st.col), s));
+  } else {                        // glitter: twinkles and flashes a 4-point sparkle
+    if (st.freq === undefined){ st.freq = rnd(1.4,3.6); st.phase = rnd(0, Math.PI*2); }
+    st.c0 = new THREE.Color(...st.col);
+    st.gm = new THREE.MeshBasicMaterial({ color:st.c0.clone() });
+    g.add(new THREE.Mesh(glitterGeo, st.gm));
+    st.spark = new THREE.Sprite(new THREE.SpriteMaterial({
+      map:sparkTex, color:0xFFF4D6, transparent:true, opacity:0, depthWrite:false, blending:THREE.AdditiveBlending
+    }));
+    st.spark.renderOrder = 2.5;
+    st.spark.scale.setScalar(0.001);
+    g.add(st.spark);
+  }
+  g.scale.setScalar(s);
+  return g;
+}
+
+// ---------- simulation (3D, inside the oil layer) ----------
+const HX=0.36, HY=0.5, RR=0.11;
+const rnd = (a,b) => a + Math.random()*(b-a);
+function sdBox(x,y){
+  const qx=Math.abs(x)-HX+RR, qy=Math.abs(y)-HY+RR;
+  return Math.hypot(Math.max(qx,0),Math.max(qy,0)) + Math.min(Math.max(qx,qy),0) - RR;
+}
+function constrain(o, margin, zlim){
+  const d = sdBox(o.x,o.y);
+  if (d > -margin){
+    const e=1e-4;
+    let nx=(sdBox(o.x+e,o.y)-sdBox(o.x-e,o.y)), ny=(sdBox(o.x,o.y+e)-sdBox(o.x,o.y-e));
+    const l=Math.hypot(nx,ny)||1; nx/=l; ny/=l;
+    const pen=d+margin; o.x-=nx*pen; o.y-=ny*pen;
+    const vn=o.vx*nx+o.vy*ny;
+    if (vn>0){ o.vx-=vn*nx; o.vy-=vn*ny; }
+  }
+  if (o.z > zlim){ o.z = zlim; if (o.vz > 0) o.vz = 0; }
+  else if (o.z < -zlim){ o.z = -zlim; if (o.vz < 0) o.vz = 0; }
+}
+
+const BUB_R=[0.085,0.08,0.075,0.07,0.064,0.058,0.04,0.032,0.025];
+const BUB_ZS = 4.2;   // must match ZS in the bubble shader
+const bubbles = BUB_R.map(r => ({
+  x:rnd(-0.15,0.15), y:rnd(-0.38,-0.3), z:0, vx:0, vy:0, vz:0, r,
+  drag:2.6*Math.pow(0.08/r, 0.8), zlim:Math.max(0, LIQ_HALF - 0.046)
+}));
+bubMat.uniforms.uBubN.value = bubbles.length;
+
+const stars=[];
+const add=(n,type,s0,s1,cols)=>{ for (let i=0;i<n;i++) stars.push({ type, s:rnd(s0,s1), col:cols[i%cols.length] }); };
+add(2, 4, 0.05, 0.056, [[0.74,0.68,0.99],[0.86,0.70,0.97]]);               // planets
+add(2, 3, 0.045, 0.05, [[0.97,0.67,0.62]]);                                 // crescent moons
+add(4, 2, 0.0192, 0.024, [[0.95,0.92,1.0]]);                                // white beads
+add(8, 0, 0.048, 0.06, [[0.99,0.84,0.52]]);                                 // gold stars
+add(26, 1, 0.00322, 0.00506, [[1.0,0.88,0.62],[1.0,0.95,0.80]]);            // glitter
+const ZEXT = {4:1.0, 3:0.55, 2:1.0, 0:0.65, 1:1.0};
+for (const st of stars){
+  st.x=rnd(-HX+0.06,HX-0.06); st.y=rnd(-HY+0.06,HY-0.06); st.vx=0; st.vy=0; st.vz=0;
+  st.ang = st.type===4 ? rnd(-0.4,0.4) : rnd(0,Math.PI*2); st.av=0;
+  st.spin = (Math.random()<0.5?-1:1) * (st.type===4 ? 0.15 : 1);
+  st.sink = st.type===0 ? rnd(0.45,0.7) : rnd(0.3,0.55);
+  st.base = st.s;
+  st.zlim = Math.max(0, LIQ_HALF - st.s*ZEXT[st.type] - 0.003);
+  st.z = rnd(-st.zlim, st.zlim);
+  st.tx = st.type===2 || st.type===1 ? 0 : rnd(-0.6,0.6);
+  st.ty = st.type===4 ? rnd(-0.3,0.3) : rnd(-0.6,0.6);
+  st.obj = makeObject(st);
+  group.add(st.obj);
+}
+
+let gLx=0, gLy=-1, gLz=0, shx=0, shy=0, shz=0, wz=0, az=0, shakeEnv=0;
+const NB=bubbles.length, NS=stars.length;
+const bax=new Float64Array(NB), bay=new Float64Array(NB), baz=new Float64Array(NB);
+const sax=new Float64Array(NS), say=new Float64Array(NS), saz=new Float64Array(NS);
+const tmp=[0,0,0];
+function ge(x,y){
+  let fx=(az*y + wz*wz*x)*0.05 - shx, fy=(-az*x + wz*wz*y)*0.05 - shy;
+  const m=Math.hypot(fx,fy); if (m>16){ fx*=16/m; fy*=16/m; }
+  tmp[0]=gLx+fx; tmp[1]=gLy+fy; tmp[2]=gLz-shz;
+}
+function kickTo(arrX, arrY, arrZ, i, k){
+  const u=Math.random()*2-1, a=Math.random()*6.283, r=Math.sqrt(1-u*u);
+  arrX[i]+=r*Math.cos(a)*k; arrY[i]+=r*Math.sin(a)*k; arrZ[i]+=u*k*0.4;
+}
+function step(h){
+  const kick = shakeEnv*16;
+  for (let i=0;i<NB;i++){
+    const b=bubbles[i]; ge(b.x,b.y);
+    bax[i]=-tmp[0]*1.25; bay[i]=-tmp[1]*1.25; baz[i]=-tmp[2]*1.25;
+    if (kick>0) kickTo(bax,bay,baz,i,kick);
+  }
+  for (let i=0;i<NB;i++) for (let j=i+1;j<NB;j++){
+    const A=bubbles[i], B=bubbles[j];
+    const dx=B.x-A.x, dy=B.y-A.y, dz=B.z-A.z, d=Math.hypot(dx,dy,dz)||1e-6;
+    const rest=(A.r+B.r)*0.8;
+    let f=0;
+    if (d<rest) f=(rest-d)*160;
+    else if (d<0.3) f=-(d-rest)*0.8*(Math.min(A.r,B.r)/0.08)*(1-shakeEnv*0.9);
+    const ux=dx/d, uy=dy/d, uz=dz/d;
+    bax[i]-=ux*f; bay[i]-=uy*f; baz[i]-=uz*f; bax[j]+=ux*f; bay[j]+=uy*f; baz[j]+=uz*f;
+  }
+  for (let i=0;i<NB;i++){
+    const b=bubbles[i];
+    b.vx+=bax[i]*h; b.vy+=bay[i]*h; b.vz+=baz[i]*h;
+    const k=Math.exp(-h*b.drag); b.vx*=k; b.vy*=k; b.vz*=k;
+    b.x+=b.vx*h; b.y+=b.vy*h; b.z+=b.vz*h;
+    constrain(b, b.r*0.8, b.zlim);
+  }
+  for (let i=0;i<NS;i++){
+    const st=stars[i]; ge(st.x,st.y);
+    let ax=tmp[0]*st.sink, ay=tmp[1]*st.sink, azz=tmp[2]*st.sink;
+    let f=0, gx=0, gy=0, gz=0;
+    for (let k=0;k<NB;k++){
+      const b=bubbles[k]; const vx=st.x-b.x, vy=st.y-b.y, vz=st.z-b.z;
+      const vzs=vz*BUB_ZS, d2=vx*vx+vy*vy+vzs*vzs+1e-6, r2=b.r*b.r, q=-2*r2/(d2*d2);
+      f+=r2/d2; gx+=q*vx; gy+=q*vy; gz+=q*vzs*BUB_ZS;
+    }
+    if (f>0.5){
+      const gl_=Math.hypot(gx,gy,gz)||1; const push=Math.min((f-0.5)*22,45);
+      ax-=gx/gl_*push; ay-=gy/gl_*push; azz-=gz/gl_*push;
+    }
+    sax[i]=ax; say[i]=ay; saz[i]=azz;
+    if (kick>0) kickTo(sax,say,saz,i,kick);
+  }
+  for (let i=0;i<NS;i++) for (let j=i+1;j<NS;j++){
+    const A=stars[i], B=stars[j];
+    const rest=(A.s+B.s)*0.8;
+    const dx=B.x-A.x; if (dx>rest || dx<-rest) continue;
+    const dy=B.y-A.y; if (dy>rest || dy<-rest) continue;
+    const dz=B.z-A.z; if (dz>rest || dz<-rest) continue;
+    const d=Math.hypot(dx,dy,dz)||1e-6; if (d>=rest) continue;
+    const f=(rest-d)*120, ux=dx/d, uy=dy/d, uz=dz/d;
+    sax[i]-=ux*f; say[i]-=uy*f; saz[i]-=uz*f; sax[j]+=ux*f; say[j]+=uy*f; saz[j]+=uz*f;
+  }
+  for (let i=0;i<NS;i++){
+    const st=stars[i];
+    st.vx+=sax[i]*h; st.vy+=say[i]*h; st.vz+=saz[i]*h;
+    const k=Math.exp(-h*3.2); st.vx*=k; st.vy*=k; st.vz*=k;
+    st.x+=st.vx*h; st.y+=st.vy*h; st.z+=st.vz*h;
+    st.av += ((st.vx-st.vy*0.5)*st.spin*40 - st.av*3)*h;
+    st.ang += st.av*h;
+    constrain(st, st.s*0.75, st.zlim);
+  }
+}
+
+// ---------- orientation ----------
+const qHome = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.22, 0.38, 0, 'XYZ'));
+const qTarget = qHome.clone(), q = qHome.clone(), qPrev = qHome.clone();
+group.quaternion.copy(q);
+
+let W=1, Hh=1;
+function resize(){
+  W=stage.clientWidth; Hh=stage.clientHeight;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+  renderer.setSize(W, Hh, false);
+  camera.aspect = W/Math.max(Hh,1);
+  const t = Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
+  const dist = Math.max(0.82/t, 0.66/(t*camera.aspect)) + 0.2;
+  camera.position.set(0,0,dist); camera.lookAt(0,0,0); camera.updateMatrixWorld();
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage);
+resize();
+
+function toSphere(cx, cy){
+  const r = stage.getBoundingClientRect();
+  const R = 0.36*Math.min(W,Hh);
+  let x=(cx-(r.left+W/2))/R, y=-(cy-(r.top+Hh/2))/R;
+  const d2=x*x+y*y;
+  if (d2<=1) return new THREE.Vector3(x,y,Math.sqrt(1-d2));
+  const d=Math.sqrt(d2); return new THREE.Vector3(x/d,y/d,0);
+}
+let dragging=false, lastV=null;
+canvas.addEventListener('pointerdown', e=>{ dragging=true; lastV=toSphere(e.clientX,e.clientY); canvas.setPointerCapture(e.pointerId); canvas.classList.add('grabbing'); });
+canvas.addEventListener('pointermove', e=>{
+  if (!dragging) return;
+  const v=toSphere(e.clientX,e.clientY);
+  const axis=new THREE.Vector3().crossVectors(lastV,v);
+  const len=axis.length();
+  if (len>1e-6){
+    const ang=Math.atan2(len, lastV.dot(v))*1.3;
+    qTarget.premultiply(new THREE.Quaternion().setFromAxisAngle(axis.divideScalar(len), ang));
+    qTarget.normalize();
+  }
+  lastV=v;
+});
+const endDrag=()=>{ dragging=false; canvas.classList.remove('grabbing'); };
+canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointercancel', endDrag);
+function rotWorld(ax,ay,az_,a){ qTarget.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(ax,ay,az_),a)).normalize(); }
+stage.addEventListener('keydown', e=>{
+  if (e.target !== stage) return;
+  const k=e.key;
+  if (k==='ArrowLeft') rotWorld(0,0,1,0.26);
+  else if (k==='ArrowRight') rotWorld(0,0,1,-0.26);
+  else if (k==='ArrowUp') rotWorld(1,0,0,-0.2);
+  else if (k==='ArrowDown') rotWorld(1,0,0,0.2);
+  else return;
+  e.preventDefault();
+});
+
+let shakeT=1e9; const SHAKE_DUR=1.1, SHAKE_A=14;
+document.getElementById('shake').addEventListener('click', ()=>{ shakeT=0; });
+document.getElementById('reset').addEventListener('click', ()=>{ qTarget.copy(qHome); });
+
+// ---------- debug: size sliders per content type ----------
+const DBG_TYPES = [{t:4,label:'惑星'},{t:3,label:'月'},{t:2,label:'白い玉'},{t:0,label:'星'},{t:1,label:'ラメ'}];
+const sizeMul = {0:1,1:1,2:1,3:1,4:1};
+const dbg = document.getElementById('dbg'), dbgBtn = document.getElementById('debug');
+dbg.innerHTML = `<div class="row"><h2>サイズ調整</h2><button type="button" id="dbgReset">元に戻す</button></div>` +
+  DBG_TYPES.map(o => `<label>${o.label}<input type="range" min="0.4" max="2" step="0.05" value="1" data-t="${o.t}"><output>1.00×</output></label>`).join('');
+function applySize(type){
+  for (const st of stars){
+    if (st.type !== type) continue;
+    st.s = st.base*sizeMul[type];
+    st.zlim = Math.max(0, LIQ_HALF - st.s*ZEXT[st.type] - 0.003);
+    group.remove(st.obj);
+    st.obj = makeObject(st);
+    group.add(st.obj);
+  }
+}
+dbg.addEventListener('input', e=>{
+  const el = e.target; if (el.type !== 'range') return;
+  const t = +el.dataset.t; sizeMul[t] = +el.value;
+  el.nextElementSibling.value = (+el.value).toFixed(2) + '×';
+  applySize(t);
+});
+dbg.querySelector('#dbgReset').addEventListener('click', ()=>{
+  dbg.querySelectorAll('input[type=range]').forEach(el=>{
+    el.value = 1; el.nextElementSibling.value = '1.00×';
+    const t = +el.dataset.t; sizeMul[t] = 1; applySize(t);
+  });
+});
+dbgBtn.addEventListener('click', ()=>{
+  dbg.hidden = !dbg.hidden;
+  dbgBtn.setAttribute('aria-expanded', String(!dbg.hidden));
+});
+
+// ---------- device tilt ----------
+const gWorld = new THREE.Vector3(0,-1,0), gTarget = new THREE.Vector3(0,-1,0);
+const tiltBtn=document.getElementById('tilt');
+let tiltOn=false, gotOrientation=false;
+function onOrient(e){
+  if (e.beta==null || e.gamma==null) return;
+  gotOrientation=true;
+  const b=e.beta*Math.PI/180, g=e.gamma*Math.PI/180;
+  let gx=Math.sin(g)*Math.cos(b), gy=-Math.sin(b);
+  const gz=-Math.cos(b)*Math.cos(g);
+  const o=((screen.orientation && screen.orientation.angle) || window.orientation || 0)*Math.PI/180;
+  const c=Math.cos(o), s=Math.sin(o);
+  gTarget.set(c*gx - s*gy, s*gx + c*gy, gz).normalize();
+}
+function showSensorHelp(){
+  let framed = true;
+  try { framed = window.self !== window.top; } catch(e) {}
+  msg.textContent = '';
+  if (framed){
+    msg.append('この表示の中では傾きセンサーが使えません。ドラッグで回してください。');
+  } else {
+    msg.append('傾きセンサーが許可されませんでした。タブを閉じて開き直すと、もう一度確認が出ます。');
+  }
+}
+tiltBtn.addEventListener('click', async ()=>{
+  if (tiltOn){
+    tiltOn=false; window.removeEventListener('deviceorientation', onOrient);
+    gTarget.set(0,-1,0); tiltBtn.setAttribute('aria-pressed','false'); msg.textContent=''; return;
+  }
+  try{
+    if (typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function'){
+      const r=await DeviceOrientationEvent.requestPermission();
+      if (r!=='granted'){ showSensorHelp(); return; }
+    }
+  }catch(err){ showSensorHelp(); return; }
+  tiltOn=true; gotOrientation=false;
+  window.addEventListener('deviceorientation', onOrient);
+  tiltBtn.setAttribute('aria-pressed','true');
+  msg.textContent='スマホを傾けてみてください';
+  setTimeout(()=>{
+    if (tiltOn && !gotOrientation) msg.textContent='傾きを読み取れませんでした。このページを単体で開くと動く場合があります。';
+  }, 1500);
+});
+
+// ---------- loop ----------
+const qInv = new THREE.Quaternion(), dq = new THREE.Quaternion();
+const v3 = new THREE.Vector3();
+let last=performance.now(), glitT=0;
+function frame(now){
+  const dt=Math.min(0.033,(now-last)/1000) || 0.016; last=now;
+
+  qPrev.copy(q);
+  q.slerp(qTarget, 1-Math.exp(-dt*14));
+  group.quaternion.copy(q);
+  qInv.copy(q).invert();
+
+  dq.copy(q).multiply(qPrev.clone().invert());
+  if (dq.w<0){ dq.x=-dq.x; dq.y=-dq.y; dq.z=-dq.z; dq.w=-dq.w; }
+  const ang=2*Math.acos(Math.min(1,dq.w)), sn=Math.sqrt(Math.max(0,1-dq.w*dq.w));
+  v3.set(0,0,0); if (sn>1e-6) v3.set(dq.x/sn, dq.y/sn, dq.z/sn).multiplyScalar(ang/dt);
+  v3.applyQuaternion(qInv);
+  const k=1-Math.exp(-dt/0.05);
+  const nwz=wz+(v3.z-wz)*k;
+  az += (((nwz-wz)/dt) - az)*k;
+  wz = nwz;
+
+  gWorld.lerp(gTarget, 1-Math.exp(-dt/0.08));
+  v3.copy(gWorld).applyQuaternion(qInv);
+  gLx=v3.x; gLy=v3.y; gLz=v3.z;
+
+  shakeT+=dt;
+  shakeEnv = shakeT<SHAKE_DUR ? 1-shakeT/SHAKE_DUR : 0;
+  const w1=2*Math.PI*4.5, w2=2*Math.PI*3.2;
+  const sxw=SHAKE_A*Math.sin(w1*shakeT)*shakeEnv, syw=0.6*SHAKE_A*Math.sin(w2*shakeT+1)*shakeEnv;
+  group.position.set(-sxw/(w1*w1), -syw/(w2*w2) - 0.04, 0);
+  v3.set(sxw,syw,0).applyQuaternion(qInv); shx=v3.x; shy=v3.y; shz=v3.z;
+
+  const n=Math.max(1,Math.ceil(dt*240)), h=dt/n;
+  for (let i=0;i<n;i++) step(h);
+
+  bubbles.forEach((b,i)=>bubArr.set([b.x,b.y,b.z,b.r],i*4));
+  group.updateMatrixWorld();
+  bubMat.uniforms.uCam.value.copy(camera.position); group.worldToLocal(bubMat.uniforms.uCam.value);
+  bubMat.uniforms.uLL.value.copy(LIGHT).applyQuaternion(qInv);
+  bubMat.uniforms.uMVP.value.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse).multiply(group.matrixWorld);
+  for (const st of stars){
+    st.obj.position.set(st.x, st.y, st.z);
+    st.obj.rotation.set(st.tx, st.ty, st.ang, 'ZYX');
+  }
+  // glitter twinkles faster while the shaker is being turned or shaken
+  glitT += dt*(0.8 + Math.min(ang/dt, 10)*0.7 + shakeEnv*3);
+  for (const st of stars){
+    if (st.type !== 1) continue;
+    const tw = Math.pow(0.5 + 0.5*Math.sin(glitT*st.freq + st.phase), 14);
+    st.gm.color.copy(st.c0).lerp(WHITE, tw);
+    st.spark.material.opacity = tw;
+    st.spark.scale.setScalar(1.5 + 8*tw);
+  }
+
+  v3.copy(gWorld).negate().applyQuaternion(qInv);
+  const u2=Math.hypot(v3.x,v3.y);
+  if (u2>0.05) liqUniforms.uUp2.value.set(v3.x/u2, v3.y/u2);
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
