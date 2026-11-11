@@ -53,10 +53,12 @@ button[aria-pressed="true"]{background:var(--ink); color:var(--bg); border-color
 #msg{margin:0 16px 14px; min-height:1.4em; text-align:center; font-size:.8rem; color:var(--sub)}
 .dbg{position:absolute; top:10px; right:10px; z-index:2; width:min(250px, calc(100% - 20px)); padding:12px 14px;
   background:var(--btn); border:1px solid var(--line); border-radius:14px; font-size:.85rem; touch-action:auto;
+  max-height:calc(100% - 20px); overflow-y:auto; overscroll-behavior:contain;
   -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px)}
 .dbg[hidden]{display:none}
 .dbg .row{display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:4px}
 .dbg h2{margin:0; font-size:.9rem; font-weight:700}
+.dbg h3{margin:12px 0 0; font-size:.8rem; font-weight:700; color:var(--sub)}
 .dbg .row button{padding:4px 12px; font-size:.8rem}
 .dbg label{display:grid; grid-template-columns:4.2em 1fr 3.2em; align-items:center; gap:8px; margin:8px 0 0}
 .dbg input[type=range]{width:100%; accent-color:var(--focus)}
@@ -431,32 +433,52 @@ const bubbles = BUB_R.map(r => ({
 }));
 bubMat.uniforms.uBubN.value = bubbles.length;
 
-const stars=[];
-const add=(n,type,s0,s1,cols)=>{ for (let i=0;i<n;i++) stars.push({ type, s:rnd(s0,s1), col:cols[i%cols.length] }); };
-add(2, 4, 0.05, 0.056, [[0.74,0.68,0.99],[0.86,0.70,0.97]]);               // planets
-add(2, 3, 0.045, 0.05, [[0.97,0.67,0.62]]);                                 // crescent moons
-add(4, 2, 0.0192, 0.024, [[0.95,0.92,1.0]]);                                // white beads
-add(8, 0, 0.048, 0.06, [[0.99,0.84,0.52]]);                                 // gold stars
-add(26, 1, 0.00322, 0.00506, [[1.0,0.88,0.62],[1.0,0.95,0.80]]);            // glitter
+// content types: default count, max count for the debug slider, size range, colours
+const SPEC = {
+  4:{n:2,  max:6,   s:[0.05,0.056],      cols:[[0.74,0.68,0.99],[0.86,0.70,0.97]]},  // planets
+  3:{n:2,  max:6,   s:[0.045,0.05],      cols:[[0.97,0.67,0.62]]},                   // crescent moons
+  2:{n:4,  max:16,  s:[0.0192,0.024],    cols:[[0.95,0.92,1.0]]},                    // white beads
+  0:{n:8,  max:24,  s:[0.048,0.06],      cols:[[0.99,0.84,0.52]]},                   // gold stars
+  1:{n:26, max:120, s:[0.00322,0.00506], cols:[[1.0,0.88,0.62],[1.0,0.95,0.80]]},    // glitter
+};
 const ZEXT = {4:1.0, 3:0.55, 2:1.0, 0:0.65, 1:1.0};
-for (const st of stars){
+const sizeMul = {0:1,1:1,2:1,3:1,4:1};
+const stars=[];
+const countOf = type => stars.reduce((n,st)=>n+(st.type===type),0);
+function spawn(type){
+  const sp = SPEC[type];
+  const st = { type, base:rnd(sp.s[0],sp.s[1]), col:sp.cols[countOf(type)%sp.cols.length] };
+  st.s = st.base*sizeMul[type];
   st.x=rnd(-HX+0.06,HX-0.06); st.y=rnd(-HY+0.06,HY-0.06); st.vx=0; st.vy=0; st.vz=0;
-  st.ang = st.type===4 ? rnd(-0.4,0.4) : rnd(0,Math.PI*2); st.av=0;
-  st.spin = (Math.random()<0.5?-1:1) * (st.type===4 ? 0.15 : 1);
-  st.sink = st.type===0 ? rnd(0.45,0.7) : rnd(0.3,0.55);
-  st.base = st.s;
-  st.zlim = Math.max(0, LIQ_HALF - st.s*ZEXT[st.type] - 0.003);
+  st.ang = type===4 ? rnd(-0.4,0.4) : rnd(0,Math.PI*2); st.av=0;
+  st.spin = (Math.random()<0.5?-1:1) * (type===4 ? 0.15 : 1);
+  st.sink = type===0 ? rnd(0.45,0.7) : rnd(0.3,0.55);
+  st.zlim = Math.max(0, LIQ_HALF - st.s*ZEXT[type] - 0.003);
   st.z = rnd(-st.zlim, st.zlim);
-  st.tx = st.type===2 || st.type===1 ? 0 : rnd(-0.6,0.6);
-  st.ty = st.type===4 ? rnd(-0.3,0.3) : rnd(-0.6,0.6);
+  st.tx = type===2 || type===1 ? 0 : rnd(-0.6,0.6);
+  st.ty = type===4 ? rnd(-0.3,0.3) : rnd(-0.6,0.6);
   st.obj = makeObject(st);
   group.add(st.obj);
+  stars.push(st);
 }
+function despawn(st){
+  group.remove(st.obj);
+  if (st.gm){ st.gm.dispose(); st.spark.material.dispose(); }
+  stars.splice(stars.indexOf(st), 1);
+}
+function setCount(type, n){
+  let c = countOf(type);
+  while (c < n){ spawn(type); c++; }
+  for (let i=stars.length-1; i>=0 && c>n; i--) if (stars[i].type===type){ despawn(stars[i]); c--; }
+  NS = stars.length;
+}
+for (const t of [4,3,2,0,1]) for (let i=0;i<SPEC[t].n;i++) spawn(t);
 
 let gLx=0, gLy=-1, gLz=0, shx=0, shy=0, shz=0, wz=0, az=0, shakeEnv=0;
-const NB=bubbles.length, NS=stars.length;
+const NB=bubbles.length, NS_MAX=Object.values(SPEC).reduce((a,o)=>a+o.max,0);
+let NS=stars.length;
 const bax=new Float64Array(NB), bay=new Float64Array(NB), baz=new Float64Array(NB);
-const sax=new Float64Array(NS), say=new Float64Array(NS), saz=new Float64Array(NS);
+const sax=new Float64Array(NS_MAX), say=new Float64Array(NS_MAX), saz=new Float64Array(NS_MAX);
 const tmp=[0,0,0];
 function ge(x,y){
   let fx=(az*y + wz*wz*x)*0.05 - shx, fy=(-az*x + wz*wz*y)*0.05 - shy;
@@ -588,12 +610,14 @@ let shakeT=1e9; const SHAKE_DUR=1.1, SHAKE_A=14;
 document.getElementById('shake').addEventListener('click', ()=>{ shakeT=0; });
 document.getElementById('reset').addEventListener('click', ()=>{ qTarget.copy(qHome); });
 
-// ---------- debug: size sliders per content type ----------
+// ---------- debug: size and amount sliders per content type ----------
 const DBG_TYPES = [{t:4,label:'惑星'},{t:3,label:'月'},{t:2,label:'白い玉'},{t:0,label:'星'},{t:1,label:'ラメ'}];
-const sizeMul = {0:1,1:1,2:1,3:1,4:1};
 const dbg = document.getElementById('dbg'), dbgBtn = document.getElementById('debug');
-dbg.innerHTML = `<div class="row"><h2>サイズ調整</h2><button type="button" id="dbgReset">元に戻す</button></div>` +
-  DBG_TYPES.map(o => `<label>${o.label}<input type="range" min="0.4" max="2" step="0.05" value="1" data-t="${o.t}"><output>1.00×</output></label>`).join('');
+dbg.innerHTML = `<div class="row"><h2>デバッグ</h2><button type="button" id="dbgReset">元に戻す</button></div>` +
+  `<h3>サイズ</h3>` +
+  DBG_TYPES.map(o => `<label>${o.label}<input type="range" min="0.4" max="2" step="0.05" value="1" data-k="size" data-t="${o.t}"><output>1.00×</output></label>`).join('') +
+  `<h3>量</h3>` +
+  DBG_TYPES.map(o => `<label>${o.label}<input type="range" min="0" max="${SPEC[o.t].max}" step="1" value="${SPEC[o.t].n}" data-k="count" data-t="${o.t}"><output>${SPEC[o.t].n}個</output></label>`).join('');
 function applySize(type){
   for (const st of stars){
     if (st.type !== type) continue;
@@ -604,16 +628,16 @@ function applySize(type){
     group.add(st.obj);
   }
 }
-dbg.addEventListener('input', e=>{
-  const el = e.target; if (el.type !== 'range') return;
-  const t = +el.dataset.t; sizeMul[t] = +el.value;
-  el.nextElementSibling.value = (+el.value).toFixed(2) + '×';
-  applySize(t);
-});
+function applySlider(el){
+  const t = +el.dataset.t, v = +el.value;
+  if (el.dataset.k === 'size'){ sizeMul[t] = v; el.nextElementSibling.value = v.toFixed(2) + '×'; applySize(t); }
+  else { el.nextElementSibling.value = v + '個'; setCount(t, v); }
+}
+dbg.addEventListener('input', e=>{ if (e.target.type === 'range') applySlider(e.target); });
 dbg.querySelector('#dbgReset').addEventListener('click', ()=>{
   dbg.querySelectorAll('input[type=range]').forEach(el=>{
-    el.value = 1; el.nextElementSibling.value = '1.00×';
-    const t = +el.dataset.t; sizeMul[t] = 1; applySize(t);
+    el.value = el.dataset.k === 'size' ? 1 : SPEC[el.dataset.t].n;
+    applySlider(el);
   });
 });
 dbgBtn.addEventListener('click', ()=>{
