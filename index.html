@@ -29,7 +29,8 @@
   color-scheme: dark;
 }
 html{height:100%; scroll-padding-top:env(safe-area-inset-top,0px);}
-*,*::before,*::after{box-sizing:inherit}
+/* disable double-tap zoom (e.g. tapping 「振る」 repeatedly) everywhere; #stage overrides with none */
+*,*::before,*::after{box-sizing:inherit; touch-action:manipulation}
 body{
   height:100%; margin:0; background:var(--bg); color:var(--ink);
   font-family:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
@@ -47,12 +48,13 @@ canvas.grabbing{cursor:grabbing}
 button{
   font:inherit; font-size:.95rem; font-weight:500; padding:10px 18px; border-radius:999px;
   border:1px solid var(--line); background:var(--btn); color:var(--btn-ink); cursor:pointer;
+  -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent;
 }
 button:focus-visible, #stage:focus-visible{outline:2px solid var(--focus); outline-offset:3px}
 button[aria-pressed="true"]{background:var(--ink); color:var(--bg); border-color:var(--ink)}
 #msg{margin:0 16px 14px; min-height:1.4em; text-align:center; font-size:.8rem; color:var(--sub)}
 .dbg{position:absolute; top:10px; right:10px; z-index:2; width:min(250px, calc(100% - 20px)); padding:12px 14px;
-  background:var(--btn); border:1px solid var(--line); border-radius:14px; font-size:.85rem; touch-action:auto;
+  background:var(--btn); border:1px solid var(--line); border-radius:14px; font-size:.85rem; touch-action:manipulation;
   max-height:calc(100% - 20px); overflow-y:auto; overscroll-behavior:contain;
   -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px)}
 .dbg[hidden]{display:none}
