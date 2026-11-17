@@ -655,10 +655,10 @@ dbgBtn.addEventListener('click', ()=>{
 const gWorld = new THREE.Vector3(0,-1,0), gTarget = new THREE.Vector3(0,-1,0);
 const tiltBtn=document.getElementById('tilt');
 let tiltOn=false, gotOrientation=false;
-// The phone acts as a window onto a shaker that stays still in the real world: when the
-// phone tilts, the shaker turns the opposite way on screen. The pose when tilt is turned on
-// (or when 「向きを戻す」 is pressed) is the neutral pose. Gravity turns with the shaker, so
-// the oil and contents stay settled and only the container appears to move.
+// The shaker tilts the same way as the phone, as if held in the hand: tip the phone to the
+// right and the container tips to the right on screen. The pose when tilt is turned on
+// (or when 「向きを戻す」 is pressed) is the neutral pose. Gravity stays pointing down the
+// screen, so the contents slide as the container tilts.
 const qDev = new THREE.Quaternion(), qDevTmp = new THREE.Quaternion();
 const devEuler = new THREE.Euler(), Z_AXIS = new THREE.Vector3(0,0,1);
 const qWorldFix = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), -Math.PI/2);
@@ -672,8 +672,7 @@ function onOrient(e){
   devEuler.set(e.beta*d, (e.alpha||0)*d, -e.gamma*d, 'YXZ');
   qDev.setFromEuler(devEuler).multiply(qWorldFix).multiply(qDevTmp.setFromAxisAngle(Z_AXIS, -o));
   if (!qDev0) qDev0 = qDev.clone();
-  qTilt.copy(qDev).invert().multiply(qDev0);
-  gTarget.set(0,-1,0).applyQuaternion(qTilt);
+  qTilt.copy(qDev0).invert().multiply(qDev);
 }
 function showSensorHelp(){
   let framed = true;
