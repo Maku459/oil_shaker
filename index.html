@@ -552,7 +552,14 @@ function step(h){
 
 // ---------- orientation ----------
 const qHome = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.22, 0.38, 0, 'XYZ'));
+// qUser: orientation set by drag / arrow keys. qTilt: extra rotation from the phone's tilt.
+const qUser = qHome.clone(), qTilt = new THREE.Quaternion();
 const qTarget = qHome.clone(), q = qHome.clone(), qPrev = qHome.clone();
+// apply a rotation given in screen space, even while the tilt rotation is on top of qUser
+function rotScreen(r){
+  const ti = qTilt.clone().invert();
+  qUser.premultiply(ti.multiply(r).multiply(qTilt)).normalize();
+}
 group.quaternion.copy(q);
 
 let W=1, Hh=1;
@@ -586,15 +593,14 @@ canvas.addEventListener('pointermove', e=>{
   const len=axis.length();
   if (len>1e-6){
     const ang=Math.atan2(len, lastV.dot(v))*1.3;
-    qTarget.premultiply(new THREE.Quaternion().setFromAxisAngle(axis.divideScalar(len), ang));
-    qTarget.normalize();
+    rotScreen(new THREE.Quaternion().setFromAxisAngle(axis.divideScalar(len), ang));
   }
   lastV=v;
 });
 const endDrag=()=>{ dragging=false; canvas.classList.remove('grabbing'); };
 canvas.addEventListener('pointerup', endDrag);
 canvas.addEventListener('pointercancel', endDrag);
-function rotWorld(ax,ay,az_,a){ qTarget.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(ax,ay,az_),a)).normalize(); }
+function rotWorld(ax,ay,az_,a){ rotScreen(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(ax,ay,az_),a)); }
 stage.addEventListener('keydown', e=>{
   if (e.target !== stage) return;
   const k=e.key;
@@ -608,7 +614,7 @@ stage.addEventListener('keydown', e=>{
 
 let shakeT=1e9; const SHAKE_DUR=1.1, SHAKE_A=14;
 document.getElementById('shake').addEventListener('click', ()=>{ shakeT=0; });
-document.getElementById('reset').addEventListener('click', ()=>{ qTarget.copy(qHome); });
+document.getElementById('reset').addEventListener('click', ()=>{ qUser.copy(qHome); qDev0 = null; });
 
 // ---------- debug: size and amount sliders per content type ----------
 const DBG_TYPES = [{t:4,label:'惑星'},{t:3,label:'月'},{t:2,label:'白い玉'},{t:0,label:'星'},{t:1,label:'ラメ'}];
@@ -649,15 +655,25 @@ dbgBtn.addEventListener('click', ()=>{
 const gWorld = new THREE.Vector3(0,-1,0), gTarget = new THREE.Vector3(0,-1,0);
 const tiltBtn=document.getElementById('tilt');
 let tiltOn=false, gotOrientation=false;
+// The phone acts as a window onto a shaker that stays still in the real world: when the
+// phone tilts, the shaker turns the opposite way on screen. The pose when tilt is turned on
+// (or when 「向きを戻す」 is pressed) is the neutral pose. Gravity turns with the shaker, so
+// the oil and contents stay settled and only the container appears to move.
+const qDev = new THREE.Quaternion(), qDevTmp = new THREE.Quaternion();
+const devEuler = new THREE.Euler(), Z_AXIS = new THREE.Vector3(0,0,1);
+const qWorldFix = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), -Math.PI/2);
+let qDev0 = null;
 function onOrient(e){
   if (e.beta==null || e.gamma==null) return;
   gotOrientation=true;
-  const b=e.beta*Math.PI/180, g=e.gamma*Math.PI/180;
-  let gx=Math.sin(g)*Math.cos(b), gy=-Math.sin(b);
-  const gz=-Math.cos(b)*Math.cos(g);
-  const o=((screen.orientation && screen.orientation.angle) || window.orientation || 0)*Math.PI/180;
-  const c=Math.cos(o), s=Math.sin(o);
-  gTarget.set(c*gx - s*gy, s*gx + c*gy, gz).normalize();
+  const d=Math.PI/180;
+  const o=((screen.orientation && screen.orientation.angle) || window.orientation || 0)*d;
+  // same convention as three.js DeviceOrientationControls: screen frame in world space
+  devEuler.set(e.beta*d, (e.alpha||0)*d, -e.gamma*d, 'YXZ');
+  qDev.setFromEuler(devEuler).multiply(qWorldFix).multiply(qDevTmp.setFromAxisAngle(Z_AXIS, -o));
+  if (!qDev0) qDev0 = qDev.clone();
+  qTilt.copy(qDev).invert().multiply(qDev0);
+  gTarget.set(0,-1,0).applyQuaternion(qTilt);
 }
 function showSensorHelp(){
   let framed = true;
@@ -672,7 +688,7 @@ function showSensorHelp(){
 tiltBtn.addEventListener('click', async ()=>{
   if (tiltOn){
     tiltOn=false; window.removeEventListener('deviceorientation', onOrient);
-    gTarget.set(0,-1,0); tiltBtn.setAttribute('aria-pressed','false'); msg.textContent=''; return;
+    qTilt.identity(); qDev0=null; gTarget.set(0,-1,0); tiltBtn.setAttribute('aria-pressed','false'); msg.textContent=''; return;
   }
   try{
     if (typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function'){
@@ -680,10 +696,10 @@ tiltBtn.addEventListener('click', async ()=>{
       if (r!=='granted'){ showSensorHelp(); return; }
     }
   }catch(err){ showSensorHelp(); return; }
-  tiltOn=true; gotOrientation=false;
+  tiltOn=true; gotOrientation=false; qDev0=null;
   window.addEventListener('deviceorientation', onOrient);
   tiltBtn.setAttribute('aria-pressed','true');
-  msg.textContent='スマホを傾けてみてください';
+  msg.textContent='スマホを傾けると容器が動きます';
   setTimeout(()=>{
     if (tiltOn && !gotOrientation) msg.textContent='傾きを読み取れませんでした。このページを単体で開くと動く場合があります。';
   }, 1500);
@@ -697,6 +713,7 @@ function frame(now){
   const dt=Math.min(0.033,(now-last)/1000) || 0.016; last=now;
 
   qPrev.copy(q);
+  qTarget.multiplyQuaternions(qTilt, qUser);
   q.slerp(qTarget, 1-Math.exp(-dt*14));
   group.quaternion.copy(q);
   qInv.copy(q).invert();
